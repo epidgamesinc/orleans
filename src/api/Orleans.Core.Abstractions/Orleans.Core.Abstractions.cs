@@ -2087,7 +2087,11 @@ namespace Orleans.Runtime
     {
         public override GrainId Read(ref System.Text.Json.Utf8JsonReader reader, System.Type typeToConvert, System.Text.Json.JsonSerializerOptions options) { throw null; }
 
+        public override GrainId ReadAsPropertyName(ref System.Text.Json.Utf8JsonReader reader, System.Type typeToConvert, System.Text.Json.JsonSerializerOptions options) { throw null; }
+
         public override void Write(System.Text.Json.Utf8JsonWriter writer, GrainId value, System.Text.Json.JsonSerializerOptions options) { }
+
+        public override void WriteAsPropertyName(System.Text.Json.Utf8JsonWriter writer, GrainId value, System.Text.Json.JsonSerializerOptions options) { }
     }
 
     public static partial class GrainIdKeyExtensions
@@ -2851,6 +2855,9 @@ namespace Orleans.Runtime
         protected abstract System.Threading.Tasks.ValueTask<TResult> InvokeInner();
     }
 
+    [GenerateSerializer]
+    [Immutable]
+    [SuppressReferenceTracking]
     public sealed partial class ResourceOptimizedPlacement : PlacementStrategy
     {
     }
@@ -2917,6 +2924,9 @@ namespace Orleans.Runtime
         public override void Write(System.Text.Json.Utf8JsonWriter writer, SiloAddress value, System.Text.Json.JsonSerializerOptions options) { }
     }
 
+    [GenerateSerializer]
+    [Immutable]
+    [SuppressReferenceTracking]
     public partial class SiloRoleBasedPlacement : PlacementStrategy
     {
     }
@@ -4048,6 +4058,38 @@ namespace OrleansCodeGen.Orleans.Runtime
     [System.CodeDom.Compiler.GeneratedCode("OrleansCodeGen", "9.0.0.0")]
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+    public sealed partial class Codec_ResourceOptimizedPlacement : global::Orleans.Serialization.Codecs.IFieldCodec<global::Orleans.Runtime.ResourceOptimizedPlacement>, global::Orleans.Serialization.Codecs.IFieldCodec
+    {
+        public void Deserialize<TReaderInput>(ref global::Orleans.Serialization.Buffers.Reader<TReaderInput> reader, global::Orleans.Runtime.ResourceOptimizedPlacement instance) { }
+
+        public global::Orleans.Runtime.ResourceOptimizedPlacement ReadValue<TReaderInput>(ref global::Orleans.Serialization.Buffers.Reader<TReaderInput> reader, global::Orleans.Serialization.WireProtocol.Field field) { throw null; }
+
+        public void Serialize<TBufferWriter>(ref global::Orleans.Serialization.Buffers.Writer<TBufferWriter> writer, global::Orleans.Runtime.ResourceOptimizedPlacement instance)
+            where TBufferWriter : System.Buffers.IBufferWriter<byte> { }
+
+        public void WriteField<TBufferWriter>(ref global::Orleans.Serialization.Buffers.Writer<TBufferWriter> writer, uint fieldIdDelta, System.Type expectedType, global::Orleans.Runtime.ResourceOptimizedPlacement value)
+            where TBufferWriter : System.Buffers.IBufferWriter<byte> { }
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("OrleansCodeGen", "9.0.0.0")]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+    public sealed partial class Codec_SiloRoleBasedPlacement : global::Orleans.Serialization.Codecs.IFieldCodec<global::Orleans.Runtime.SiloRoleBasedPlacement>, global::Orleans.Serialization.Codecs.IFieldCodec, global::Orleans.Serialization.Serializers.IBaseCodec<global::Orleans.Runtime.SiloRoleBasedPlacement>, global::Orleans.Serialization.Serializers.IBaseCodec
+    {
+        public void Deserialize<TReaderInput>(ref global::Orleans.Serialization.Buffers.Reader<TReaderInput> reader, global::Orleans.Runtime.SiloRoleBasedPlacement instance) { }
+
+        public global::Orleans.Runtime.SiloRoleBasedPlacement ReadValue<TReaderInput>(ref global::Orleans.Serialization.Buffers.Reader<TReaderInput> reader, global::Orleans.Serialization.WireProtocol.Field field) { throw null; }
+
+        public void Serialize<TBufferWriter>(ref global::Orleans.Serialization.Buffers.Writer<TBufferWriter> writer, global::Orleans.Runtime.SiloRoleBasedPlacement instance)
+            where TBufferWriter : System.Buffers.IBufferWriter<byte> { }
+
+        public void WriteField<TBufferWriter>(ref global::Orleans.Serialization.Buffers.Writer<TBufferWriter> writer, uint fieldIdDelta, System.Type expectedType, global::Orleans.Runtime.SiloRoleBasedPlacement value)
+            where TBufferWriter : System.Buffers.IBufferWriter<byte> { }
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("OrleansCodeGen", "9.0.0.0")]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public sealed partial class Codec_SiloUnavailableException : global::Orleans.Serialization.Codecs.IFieldCodec<global::Orleans.Runtime.SiloUnavailableException>, global::Orleans.Serialization.Codecs.IFieldCodec
     {
         public Codec_SiloUnavailableException(global::Orleans.Serialization.Serializers.ICodecProvider codecProvider) { }
@@ -4225,6 +4267,16 @@ namespace OrleansCodeGen.Orleans.Runtime
     public sealed partial class Copier_OrleansMessageRejectionException : global::Orleans.Serialization.GeneratedCodeHelpers.OrleansGeneratedCodeHelper.ExceptionCopier<global::Orleans.Runtime.OrleansMessageRejectionException, global::Orleans.Runtime.OrleansException>
     {
         public Copier_OrleansMessageRejectionException(global::Orleans.Serialization.Serializers.ICodecProvider codecProvider) : base(default(Serialization.Serializers.ICodecProvider)!) { }
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("OrleansCodeGen", "9.0.0.0")]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+    public sealed partial class Copier_SiloRoleBasedPlacement : global::Orleans.Serialization.Cloning.IDeepCopier<global::Orleans.Runtime.SiloRoleBasedPlacement>, global::Orleans.Serialization.Cloning.IDeepCopier, global::Orleans.Serialization.Cloning.IBaseCopier<global::Orleans.Runtime.SiloRoleBasedPlacement>, global::Orleans.Serialization.Cloning.IBaseCopier
+    {
+        public void DeepCopy(global::Orleans.Runtime.SiloRoleBasedPlacement input, global::Orleans.Runtime.SiloRoleBasedPlacement output, global::Orleans.Serialization.Cloning.CopyContext context) { }
+
+        public global::Orleans.Runtime.SiloRoleBasedPlacement DeepCopy(global::Orleans.Runtime.SiloRoleBasedPlacement original, global::Orleans.Serialization.Cloning.CopyContext context) { throw null; }
     }
 
     [System.CodeDom.Compiler.GeneratedCode("OrleansCodeGen", "9.0.0.0")]
