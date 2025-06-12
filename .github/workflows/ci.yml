@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - ghtest
   pull_request:
     branches:
       - main
@@ -515,3 +516,24 @@ jobs:
         path: |
           **/TestResults/*
           **/logs/*
+  deploy:
+    name: Deploy
+    if: github.ref == 'refs/heads/ghtest' && success()
+    runs-on: ubuntu-latest
+    steps:
+    - name: set version
+      run: |
+        SHA=${{ github.sha }}
+        echo "VERSION=9.1.2-${SHA::7}" >> $GITHUB_ENV
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: |
+          8.0.x
+    - name: Build
+      run: dotnet build --configuration Release /p:Version=${VERSION}
+    - name: Pack
+      run: dotnet pack --configuration Release /p:Version=${VERSION} --no-build --output ./pack
+    - name: Publish
+      run: dotnet nuget push ./pack/*.nupkg --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --api-key ${{ secrets.GITHUB_TOKEN }}
