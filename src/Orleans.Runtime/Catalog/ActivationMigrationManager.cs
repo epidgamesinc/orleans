@@ -60,7 +60,7 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
     private readonly ConcurrentDictionary<SiloAddress, (Task PumpTask, Channel<MigrationWorkItem> WorkItemChannel)> _workers = new();
     private readonly ObjectPool<MigrationWorkItem> _workItemPool = ObjectPool.Create(new MigrationWorkItem.ObjectPoolPolicy());
     private readonly CancellationTokenSource _shuttingDownCts = new();
-    private readonly ILogger<ActivationMigrationManager> _logger;
+    private readonly ILogger _logger;
     private readonly IInternalGrainFactory _grainFactory;
     private readonly Catalog _catalog;
     private readonly IClusterMembershipService _clusterMembershipService;
@@ -78,7 +78,8 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
         IClusterMembershipService clusterMembershipService) : base(Constants.ActivationMigratorType, localSiloDetails.SiloAddress, loggerFactory)
     {
         _grainFactory = grainFactory;
-        _logger = loggerFactory.CreateLogger<ActivationMigrationManager>();
+        var typeName = GetType().FullName ?? "unknown";
+        _logger = loggerFactory.CreateLogger(typeName);
         _catalog = catalog;
         _clusterMembershipService = clusterMembershipService;
         _catalog.RegisterSystemTarget(this);
