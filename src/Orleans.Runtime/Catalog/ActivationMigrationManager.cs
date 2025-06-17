@@ -98,7 +98,7 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
     public async ValueTask AcceptMigratingGrains(List<GrainMigrationPackage> migratingGrains)
     {
         const string activityName = "ActivationMigrationManager.AcceptMigratingGrains";
-        _logger.LogInformation("{ActivityName} started with {Count} migrating grains", activityName, migratingGrains.Count);
+        _logger.LogWarning("{ActivityName} started with {Count} migrating grains", activityName, migratingGrains.Count);
 
         var activations = new List<ActivationData>();
         for (var i = 0; i < migratingGrains.Count; i++)
