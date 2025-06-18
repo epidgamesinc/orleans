@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -59,7 +60,7 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
     private readonly ConcurrentDictionary<SiloAddress, (Task PumpTask, Channel<MigrationWorkItem> WorkItemChannel)> _workers = new();
     private readonly ObjectPool<MigrationWorkItem> _workItemPool = ObjectPool.Create(new MigrationWorkItem.ObjectPoolPolicy());
     private readonly CancellationTokenSource _shuttingDownCts = new();
-    private readonly ILogger<ActivationMigrationManager> _logger;
+    private readonly ILogger _logger;
     private readonly IInternalGrainFactory _grainFactory;
     private readonly Catalog _catalog;
     private readonly IClusterMembershipService _clusterMembershipService;
@@ -77,7 +78,8 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
         IClusterMembershipService clusterMembershipService) : base(Constants.ActivationMigratorType, localSiloDetails.SiloAddress, loggerFactory)
     {
         _grainFactory = grainFactory;
-        _logger = loggerFactory.CreateLogger<ActivationMigrationManager>();
+        var typeName = GetType().FullName ?? "unknown";
+        _logger = loggerFactory.CreateLogger(typeName);
         _catalog = catalog;
         _clusterMembershipService = clusterMembershipService;
         _catalog.RegisterSystemTarget(this);
@@ -96,9 +98,15 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
 
     public async ValueTask AcceptMigratingGrains(List<GrainMigrationPackage> migratingGrains)
     {
+        const string activityName = "ActivationMigrationManager.AcceptMigratingGrains";
+        _logger.LogWarning("{ActivityName} started with {Count} migrating grains", activityName, migratingGrains.Count);
+
         var activations = new List<ActivationData>();
-        foreach (var package in migratingGrains)
+        for (var i = 0; i < migratingGrains.Count; i++)
         {
+            var package = migratingGrains[i];
+            _logger.LogInformation("{ActivityName} processing grain {GrainId} ({Index}/{Count})", activityName, package.GrainId, i + 1, migratingGrains.Count);
+
             // If the activation does not exist, create it and provide it with the migration context while doing so.
             // If the activation already exists or cannot be created, it is too late to perform migration, so ignore the request.
             var context = _catalog.GetOrCreateActivation(package.GrainId, requestContextData: null, package.MigrationContext);
@@ -108,7 +116,7 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
             }
         }
 
-        while (true)
+        for (var i = 0; ; i++)
         {
             var allActiveOrTerminal = true;
             foreach (var activation in activations)
@@ -130,6 +138,14 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
 
             // Wait a short amount of time and poll the activations again.
             await Task.Delay(5);
+
+            // 1초 틱
+            if (i % 200 == 0)
+            {
+                var invalidStateActivations = activations.Where(a => a.State is not (ActivationState.Valid or ActivationState.Invalid));
+                var grainIdAndStatusList = string.Join(", ", invalidStateActivations.Select(a => $"{a.GrainId} ({a.State})"));
+                _logger.LogInformation("{ActivityName} {Tick} waiting for {Count} activations to become valid or terminal\n{GrainIds}", activityName, i / 200, activations.Count, grainIdAndStatusList);
+            }
         }
     }
 
