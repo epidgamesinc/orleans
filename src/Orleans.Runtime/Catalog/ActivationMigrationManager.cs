@@ -121,13 +121,19 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
             var allActiveOrTerminal = true;
             foreach (var activation in activations)
             {
-                lock (activation)
+                if (Monitor.TryEnter(activation, 1000))
                 {
                     if (activation.State is not (ActivationState.Valid or ActivationState.Invalid))
                     {
                         allActiveOrTerminal = false;
                         break;
                     }
+
+                    Monitor.Exit(activation);
+                }
+                else
+                {
+                    _logger.LogError("{ActivityName} failed to acquire lock for activation {GrainId} after 1 second", activityName, activation.GrainId);
                 }
             }
 
