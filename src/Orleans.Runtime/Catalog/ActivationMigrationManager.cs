@@ -147,6 +147,8 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
                 _logger.LogInformation("{ActivityName} {Tick} waiting for {Count} activations to become valid or terminal\n{GrainIds}", activityName, i / 200, activations.Count, grainIdAndStatusList);
             }
         }
+
+        _logger.LogInformation("{ActivityName} completed with {Count} migrating grains", activityName, migratingGrains.Count);
     }
 
     public ValueTask MigrateAsync(SiloAddress targetSilo, GrainId grainId, MigrationContext migrationContext)
@@ -213,7 +215,7 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
 
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug("Starting migration worker for target silo {SiloAddress}", targetSilo);
+                _logger.LogInformation("Starting migration worker for target silo {SiloAddress}", targetSilo);
             }
 
             var items = new List<MigrationWorkItem>();
@@ -231,7 +233,9 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
                     }
 
                     // Attempt to migrate the batch.
+                    _logger.LogInformation("Migrating {Count} grain activations to target silo {SiloAddress}", items.Count, targetSilo);
                     await remote.AcceptMigratingGrains(batch).AsTask().WaitAsync(_shuttingDownCts.Token);
+                    _logger.LogInformation("Successfully migrated {Count} grain activations to target silo {SiloAddress}", items.Count, targetSilo);
 
                     foreach (var item in items)
                     {
