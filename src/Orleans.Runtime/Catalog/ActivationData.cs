@@ -54,6 +54,8 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     private readonly Task _messageLoopTask;
 #pragma warning restore IDE0052 // Remove unread private members
 
+    public StackTrace? _t = null;
+
     public ActivationData(
         GrainAddress grainAddress,
         Func<IGrainContext, WorkItemGroup> createWorkItemGroup,
@@ -87,7 +89,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         get
         {
             if (_lifecycle is { } lifecycle) return lifecycle;
-            lock (this) { return _lifecycle ??= new GrainLifecycle(_shared.Logger); }
+            lock (this) { _t = new(); return _lifecycle ??= new GrainLifecycle(_shared.Logger); }
         }
     }
 
@@ -120,6 +122,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             lock (this)
             {
+                _t = new();
                 _extras ??= new();
                 _extras.ForwardingAddress = value;
             }
@@ -137,6 +140,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             lock (this)
             {
+                _t = new();
                 _extras ??= new();
                 _extras.PreviousRegistration = value;
             }
@@ -152,6 +156,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             lock (this)
             {
+                _t = new();
                 _extras ??= new();
                 _extras.DeactivationReason = value;
             }
@@ -165,6 +170,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             lock (this)
             {
+                _t = new();
                 _extras ??= new();
                 _extras.Timers = value;
             }
@@ -178,6 +184,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             lock (this)
             {
+                _t = new();
                 _extras ??= new();
                 _extras.DeactivationStartTime = value;
             }
@@ -191,6 +198,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             lock (this)
             {
+                _t = new();
                 _extras ??= new();
                 _extras.IsStuckDeactivating = value;
             }
@@ -204,6 +212,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             lock (this)
             {
+                _t = new();
                 _extras ??= new();
                 _extras.IsStuckProcessingMessage = value;
             }
@@ -217,6 +226,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             lock (this)
             {
+                _t = new();
                 _extras ??= new();
                 _extras.DehydrationContext = value;
             }
@@ -287,6 +297,8 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
         lock (this)
         {
+            _t = new();
+
             if (instance == null)
             {
                 _extras?.Remove(typeof(TComponent));
@@ -304,6 +316,8 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
         lock (this)
         {
+            _t = new();
+
             if (GrainInstance is not null)
             {
                 throw new InvalidOperationException("Grain instance is already set.");
@@ -382,6 +396,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             return _runningRequests.Count + WaitingCount;
         }
     }
@@ -390,6 +405,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             var result = new List<Message>(_waitingRequests.Count);
             foreach (var (message, _) in _waitingRequests)
             {
@@ -441,6 +457,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             _pendingOperations ??= new();
             _pendingOperations.Enqueue(operation);
         }
@@ -452,6 +469,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             // If the grain is currently activating, cancel that operation.
             if (_pendingOperations is not { } operations)
             {
@@ -499,6 +517,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             if (State is not (ActivationState.Activating or ActivationState.Valid or ActivationState.Deactivating))
             {
                 return;
@@ -516,6 +535,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
             lock (this)
             {
+                _t = new();
                 if (!DeactivateCore(new DeactivationReason(DeactivationReasonCode.Migrating, "Migrating to a new location."), cts.Token))
                 {
                     // Grain is not able to start deactivating or has already completed.
@@ -587,6 +607,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             var state = State;
             if (state is ActivationState.Invalid)
             {
@@ -639,6 +660,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             Timers ??= new HashSet<IGrainTimer>();
             Timers.Add(timer);
         }
@@ -648,6 +670,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this) // need to lock since dispose can be called on finalizer thread, outside grain context (not single threaded).
         {
+            _t = new();
             if (Timers is null)
             {
                 return;
@@ -661,6 +684,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             if (Timers is null)
             {
                 return;
@@ -686,6 +710,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         List<string>? diagnostics = null;
         lock (this)
         {
+            _t = new();
             if (State != ActivationState.Valid)
             {
                 return;
@@ -788,6 +813,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             var currentlyExecuting = includeExtraDetails ? _blockingRequest : null;
             return @$"[Activation: {Address.SiloAddress}/{GrainId}{ActivationId} {GetActivationInfoString()} State={State} NonReentrancyQueueSize={WaitingCount} NumRunning={_runningRequests.Count} IdlenessTimeSpan={GetIdleness()} CollectionAgeLimit={_shared.CollectionAgeLimit}{(currentlyExecuting != null ? " CurrentlyExecuting=" : null)}{currentlyExecuting}]";
         }
@@ -816,6 +842,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
         lock (this)
         {
+            _t = new();
             _shared.InternalRuntime.ActivationWorkingSet.OnDeactivated(this);
             SetState(ActivationState.Invalid);
         }
@@ -905,6 +932,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         const int IdlenessLowerBound = 10_000;
         lock (this)
         {
+            _t = new();
             var inactive = IsInactive && _idleDuration.ElapsedMilliseconds > IdlenessLowerBound;
 
             // This instance will remain in the working set if it is either not pending removal or if it is currently active.
@@ -932,6 +960,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
                     bool hasPendingOperations;
                     lock (this)
                     {
+                        _t = new();
                         hasPendingOperations = _pendingOperations is { Count: > 0 };
                     }
 
@@ -960,6 +989,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
                 Message? message = null;
                 lock (this)
                 {
+                    _t = new();
                     if (_waitingRequests.Count <= i)
                     {
                         break;
@@ -1158,6 +1188,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
             {
                 lock (this)
                 {
+                    _t = new();
                     Debug.Assert(_pendingOperations is not null);
 
                     // Remove the previous operation.
@@ -1219,6 +1250,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
             lock (this)
             {
+                _t = new();
                 if (State != ActivationState.Creating)
                 {
                     _shared.Logger.LogWarning("Ignoring attempt to rehydrate grain '{GrainContext}' in the '{State}' state.", this, State);
@@ -1270,6 +1302,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
         lock (this)
         {
+            _t = new();
             Debug.Assert(context is not null);
 
             // Note that these calls are in reverse order from Rehydrate, not for any particular reason other than symmetry.
@@ -1347,6 +1380,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             _runningRequests.Remove(message);
 
             // If the message is meant to keep the activation active, reset the idle timer and ensure the activation
@@ -1401,6 +1435,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             if (State == ActivationState.Invalid)
             {
                 _shared.InternalRuntime.MessagingTrace.OnDispatcherReceiveInvalidActivation(message, State);
@@ -1427,6 +1462,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
         lock (this)
         {
+            _t = new();
             _waitingRequests.Add((message, CoarseStopwatch.StartNew()));
         }
 
@@ -1440,6 +1476,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             List<Message> msgs = DequeueAllWaitingRequests();
             if (msgs == null || msgs.Count <= 0) return;
 
@@ -1464,6 +1501,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             List<Message> msgs = DequeueAllWaitingRequests();
             if (msgs is not { Count: > 0 })
             {
@@ -1614,6 +1652,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
             lock (this)
             {
+                _t = new();
                 SetState(ActivationState.Activating);
             }
 
@@ -1654,6 +1693,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
                 lock (this)
                 {
+                    _t = new();
                     if (State is ActivationState.Activating)
                     {
                         SetState(ActivationState.Valid); // Activate calls on this activation are finished
@@ -1873,6 +1913,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     {
         lock (this)
         {
+            _t = new();
             _extras ??= new();
             return _extras.DeactivationTask ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         }

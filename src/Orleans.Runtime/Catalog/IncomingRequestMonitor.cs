@@ -124,6 +124,7 @@ namespace Orleans.Runtime
                     var activation = activationEntry.Key;
                     lock (activation)
                     {
+                        activation._t = new();
                         activation.AnalyzeWorkload(now, messageCenter, _messageFactory, options);
                     }
 
