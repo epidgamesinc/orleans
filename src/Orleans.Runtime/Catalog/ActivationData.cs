@@ -34,6 +34,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     private readonly IServiceScope _serviceScope;
     private readonly WorkItemGroup _workItemGroup;
     private readonly List<(Message Message, CoarseStopwatch QueuedTime)> _waitingRequests = new();
+    private readonly object _waitingRequestsLock = new();
     private readonly Dictionary<Message, CoarseStopwatch> _runningRequests = new();
     private readonly SingleWaiterAutoResetEvent _workSignal = new() { RunContinuationsAsynchronously = true };
     private GrainLifecycle? _lifecycle;
@@ -118,7 +119,17 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     /// </summary>
     internal bool IsUsingGrainDirectory => PlacementStrategy.IsUsingGrainDirectory;
 
-    public int WaitingCount => _waitingRequests.Count;
+    public int WaitingCount
+    {
+        get
+        {
+            lock (_waitingRequestsLock)
+            {
+                return _waitingRequests.Count;
+            }
+        }
+    }
+
     public bool IsInactive => !IsCurrentlyExecuting && _waitingRequests.Count == 0;
     public bool IsCurrentlyExecuting => _runningRequests.Count > 0;
     public IWorkItemScheduler Scheduler => _workItemGroup;
@@ -342,7 +353,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
     internal List<Message> DequeueAllWaitingRequests()
     {
-        lock (this)
+        lock (_waitingRequestsLock)
         {
             _t = new();
             var result = new List<Message>(_waitingRequests.Count);
@@ -708,29 +719,32 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
             }
 
             var queueLength = 1;
-            foreach (var pair in _waitingRequests)
+            lock (_waitingRequestsLock)
             {
-                var message = pair.Message;
-                if (message.IsLocalOnly)
+                foreach (var pair in _waitingRequests)
                 {
-                    continue;
-                }
+                    var message = pair.Message;
+                    if (message.IsLocalOnly)
+                    {
+                        continue;
+                    }
 
-                var queuedTime = pair.QueuedTime.Elapsed;
-                if (queuedTime >= longQueueTimeDuration)
-                {
-                    // Message X has been enqueued on the target grain for Y and is currently position QueueLength in queue for processing.
-                    GetStatusList(ref diagnostics);
-                    var messageDiagnostics = new List<string>(diagnostics)
+                    var queuedTime = pair.QueuedTime.Elapsed;
+                    if (queuedTime >= longQueueTimeDuration)
+                    {
+                        // Message X has been enqueued on the target grain for Y and is currently position QueueLength in queue for processing.
+                        GetStatusList(ref diagnostics);
+                        var messageDiagnostics = new List<string>(diagnostics)
                     {
                        $"Message {message} has been enqueued on the target grain for {queuedTime} and is currently position {queueLength} in queue for processing."
                     };
 
-                    var response = messageFactory.CreateDiagnosticResponseMessage(message, isExecuting: false, isWaiting: true, messageDiagnostics);
-                    messageCenter.SendMessage(response);
-                }
+                        var response = messageFactory.CreateDiagnosticResponseMessage(message, isExecuting: false, isWaiting: true, messageDiagnostics);
+                        messageCenter.SendMessage(response);
+                    }
 
-                queueLength++;
+                    queueLength++;
+                }
             }
         }
 
@@ -927,88 +941,91 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
                 Message? message = null;
                 lock (this)
                 {
-                    _t = new();
-                    if (_waitingRequests.Count <= i)
+                    lock (_waitingRequestsLock)
                     {
-                        break;
-                    }
-
-                    message = _waitingRequests[i].Message;
-
-                    // If the activation is not valid, reject all pending messages except for local-only messages.
-                    // Local-only messages are used for internal system operations and should not be rejected while the grain is valid or deactivating.
-                    if (State != ActivationState.Valid && !(message.IsLocalOnly && State is ActivationState.Deactivating))
-                    {
-                        ProcessRequestsToInvalidActivation();
-                        break;
-                    }
-
-                    try
-                    {
-                        if (!MayInvokeRequest(message))
+                        _t = new();
+                        if (_waitingRequests.Count <= i)
                         {
-                            // The activation is not able to process this message right now, so try the next message.
-                            ++i;
+                            break;
+                        }
 
-                            if (_blockingRequest != null)
+                        message = _waitingRequests[i].Message;
+
+                        // If the activation is not valid, reject all pending messages except for local-only messages.
+                        // Local-only messages are used for internal system operations and should not be rejected while the grain is valid or deactivating.
+                        if (State != ActivationState.Valid && !(message.IsLocalOnly && State is ActivationState.Deactivating))
+                        {
+                            ProcessRequestsToInvalidActivation();
+                            break;
+                        }
+
+                        try
+                        {
+                            if (!MayInvokeRequest(message))
                             {
-                                var currentRequestActiveTime = _busyDuration.Elapsed;
-                                if (currentRequestActiveTime > _shared.MaxRequestProcessingTime && !IsStuckProcessingMessage)
+                                // The activation is not able to process this message right now, so try the next message.
+                                ++i;
+
+                                if (_blockingRequest != null)
                                 {
-                                    DeactivateStuckActivation();
+                                    var currentRequestActiveTime = _busyDuration.Elapsed;
+                                    if (currentRequestActiveTime > _shared.MaxRequestProcessingTime && !IsStuckProcessingMessage)
+                                    {
+                                        DeactivateStuckActivation();
+                                    }
+                                    else if (currentRequestActiveTime > _shared.MaxWarningRequestProcessingTime)
+                                    {
+                                        // Consider: Handle long request detection for reentrant activations -- this logic only works for non-reentrant activations
+                                        _shared.Logger.LogWarning(
+                                            (int)ErrorCode.Dispatcher_ExtendedMessageProcessing,
+                                            "Current request has been active for {CurrentRequestActiveTime} for grain {Grain}. Currently executing {BlockingRequest}. Trying to enqueue {Message}.",
+                                            currentRequestActiveTime,
+                                            ToDetailedString(),
+                                            _blockingRequest,
+                                            message);
+                                    }
                                 }
-                                else if (currentRequestActiveTime > _shared.MaxWarningRequestProcessingTime)
-                                {
-                                    // Consider: Handle long request detection for reentrant activations -- this logic only works for non-reentrant activations
-                                    _shared.Logger.LogWarning(
-                                        (int)ErrorCode.Dispatcher_ExtendedMessageProcessing,
-                                        "Current request has been active for {CurrentRequestActiveTime} for grain {Grain}. Currently executing {BlockingRequest}. Trying to enqueue {Message}.",
-                                        currentRequestActiveTime,
-                                        ToDetailedString(),
-                                        _blockingRequest,
-                                        message);
-                                }
+
+                                continue;
                             }
 
+                            // If the current message is incompatible, deactivate this activation and eventually forward the message to a new incarnation.
+                            if (message.InterfaceVersion > 0)
+                            {
+                                var compatibilityDirector = _shared.InternalRuntime.CompatibilityDirectorManager.GetDirector(message.InterfaceType);
+                                var currentVersion = _shared.InternalRuntime.GrainVersionManifest.GetLocalVersion(message.InterfaceType);
+                                if (!compatibilityDirector.IsCompatible(message.InterfaceVersion, currentVersion))
+                                {
+                                    // Add this activation to cache invalidation headers.
+                                    message.CacheInvalidationHeader ??= new List<GrainAddressCacheUpdate>();
+                                    message.CacheInvalidationHeader.Add(new GrainAddressCacheUpdate(Address, validAddress: null));
+
+                                    var reason = new DeactivationReason(
+                                        DeactivationReasonCode.IncompatibleRequest,
+                                        $"Received incompatible request for interface {message.InterfaceType} version {message.InterfaceVersion}. This activation supports interface version {currentVersion}.");
+
+                                    Deactivate(reason, cancellationToken: default);
+                                    return;
+                                }
+                            }
+                        }
+                        catch (Exception exception)
+                        {
+                            if (!message.IsLocalOnly)
+                            {
+                                _shared.InternalRuntime.MessageCenter.RejectMessage(message, Message.RejectionTypes.Transient, exception);
+                            }
+
+                            _waitingRequests.RemoveAt(i);
                             continue;
                         }
 
-                        // If the current message is incompatible, deactivate this activation and eventually forward the message to a new incarnation.
-                        if (message.InterfaceVersion > 0)
-                        {
-                            var compatibilityDirector = _shared.InternalRuntime.CompatibilityDirectorManager.GetDirector(message.InterfaceType);
-                            var currentVersion = _shared.InternalRuntime.GrainVersionManifest.GetLocalVersion(message.InterfaceType);
-                            if (!compatibilityDirector.IsCompatible(message.InterfaceVersion, currentVersion))
-                            {
-                                // Add this activation to cache invalidation headers.
-                                message.CacheInvalidationHeader ??= new List<GrainAddressCacheUpdate>();
-                                message.CacheInvalidationHeader.Add(new GrainAddressCacheUpdate(Address, validAddress: null));
-
-                                var reason = new DeactivationReason(
-                                    DeactivationReasonCode.IncompatibleRequest,
-                                    $"Received incompatible request for interface {message.InterfaceType} version {message.InterfaceVersion}. This activation supports interface version {currentVersion}.");
-
-                                Deactivate(reason, cancellationToken: default);
-                                return;
-                            }
-                        }
-                    }
-                    catch (Exception exception)
-                    {
-                        if (!message.IsLocalOnly)
-                        {
-                            _shared.InternalRuntime.MessageCenter.RejectMessage(message, Message.RejectionTypes.Transient, exception);
-                        }
-
+                        // Process this message, removing it from the queue.
                         _waitingRequests.RemoveAt(i);
-                        continue;
+
+                        Debug.Assert(State == ActivationState.Valid || message.IsLocalOnly);
+                        RecordRunning(message, message.IsAlwaysInterleave);
                     }
-
-                    // Process this message, removing it from the queue.
-                    _waitingRequests.RemoveAt(i);
-
-                    Debug.Assert(State == ActivationState.Valid || message.IsLocalOnly);
-                    RecordRunning(message, message.IsAlwaysInterleave);
                 }
 
                 // Start invoking the message outside of the lock
@@ -1398,9 +1415,8 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
             return;
         }
 
-        lock (this)
+        lock (_waitingRequestsLock)
         {
-            _t = new();
             _waitingRequests.Add((message, CoarseStopwatch.StartNew()));
         }
 
