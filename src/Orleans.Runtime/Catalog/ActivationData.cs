@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -46,7 +47,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     // Values which are needed less frequently and do not warrant living directly on activation for object size reasons.
     // The values in this field are typically used to represent termination state of an activation or features which are not
     // used by all grains, such as grain timers.
-    private ActivationDataExtra? _extras;
+    private ActivationDataExtra _extras = new();
 
     // The task representing this activation's message loop.
     // This field is assigned and never read and exists only for debugging purposes (eg, in memory dumps, to associate a loop task with an activation).
@@ -125,16 +126,8 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
     public SiloAddress? ForwardingAddress
     {
-        get => _extras?.ForwardingAddress;
-        set
-        {
-            lock (this)
-            {
-                _t = new();
-                _extras ??= new();
-                _extras.ForwardingAddress = value;
-            }
-        }
+        get => _extras.ForwardingAddress;
+        set => _extras.ForwardingAddress = value;
     }
 
     /// <summary>
@@ -143,102 +136,46 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     /// </summary>
     public GrainAddress? PreviousRegistration
     {
-        get => _extras?.PreviousRegistration;
-        set
-        {
-            lock (this)
-            {
-                _t = new();
-                _extras ??= new();
-                _extras.PreviousRegistration = value;
-            }
-        }
+        get => _extras.PreviousRegistration;
+        set => _extras.PreviousRegistration = value;
     }
 
-    private Exception? DeactivationException => _extras?.DeactivationReason.Exception;
+    private Exception? DeactivationException => _extras.DeactivationReason.Exception;
 
     private DeactivationReason DeactivationReason
     {
-        get => _extras?.DeactivationReason ?? default;
-        set
-        {
-            lock (this)
-            {
-                _t = new();
-                _extras ??= new();
-                _extras.DeactivationReason = value;
-            }
-        }
+        get => _extras.DeactivationReason;
+        set => _extras.DeactivationReason = value;
     }
 
     private HashSet<IGrainTimer>? Timers
     {
-        get => _extras?.Timers;
-        set
-        {
-            lock (this)
-            {
-                _t = new();
-                _extras ??= new();
-                _extras.Timers = value;
-            }
-        }
+        get => _extras.Timers;
+        set => _extras.Timers = value;
     }
 
     private DateTime? DeactivationStartTime
     {
-        get => _extras?.DeactivationStartTime;
-        set
-        {
-            lock (this)
-            {
-                _t = new();
-                _extras ??= new();
-                _extras.DeactivationStartTime = value;
-            }
-        }
+        get => _extras.DeactivationStartTime;
+        set => _extras.DeactivationStartTime = value;
     }
 
     private bool IsStuckDeactivating
     {
-        get => _extras?.IsStuckDeactivating ?? false;
-        set
-        {
-            lock (this)
-            {
-                _t = new();
-                _extras ??= new();
-                _extras.IsStuckDeactivating = value;
-            }
-        }
+        get => _extras.IsStuckDeactivating;
+        set => _extras.IsStuckDeactivating = value;
     }
 
     private bool IsStuckProcessingMessage
     {
-        get => _extras?.IsStuckProcessingMessage ?? false;
-        set
-        {
-            lock (this)
-            {
-                _t = new();
-                _extras ??= new();
-                _extras.IsStuckProcessingMessage = value;
-            }
-        }
+        get => _extras.IsStuckProcessingMessage;
+        set => _extras.IsStuckProcessingMessage = value;
     }
 
     private DehydrationContextHolder? DehydrationContext
     {
-        get => _extras?.DehydrationContext;
-        set
-        {
-            lock (this)
-            {
-                _t = new();
-                _extras ??= new();
-                _extras.DehydrationContext = value;
-            }
-        }
+        get => _extras.DehydrationContext;
+        set => _extras.DehydrationContext = value;
     }
 
     public TimeSpan CollectionAgeLimit => _shared.CollectionAgeLimit;
@@ -274,7 +211,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             result = contextResult;
         }
-        else if (_extras is { } components && components.TryGetValue(typeof(TComponent), out var resultObj))
+        else if (_extras.TryGetValue(typeof(TComponent), out var resultObj))
         {
             result = (TComponent)resultObj;
         }
@@ -303,19 +240,13 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
             throw new ArgumentException("Cannot override a component which is implemented by this grain context");
         }
 
-        lock (this)
+        if (instance == null)
         {
-            _t = new();
-
-            if (instance == null)
-            {
-                _extras?.Remove(typeof(TComponent));
-                return;
-            }
-
-            _extras ??= new();
-            _extras[typeof(TComponent)] = instance;
+            _extras.TryRemove(typeof(TComponent), out _);
+            return;
         }
+
+        _extras[typeof(TComponent)] = instance;
     }
 
     internal void SetGrainInstance(object grainInstance)
@@ -842,7 +773,6 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
     public async ValueTask DisposeAsync()
     {
-        _extras ??= new();
         if (_extras.IsDisposing) return;
         _extras.IsDisposing = true;
 
@@ -1919,12 +1849,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
     private TaskCompletionSource<bool> GetDeactivationCompletionSource()
     {
-        lock (this)
-        {
-            _t = new();
-            _extras ??= new();
-            return _extras.DeactivationTask ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        }
+        return _extras.DeactivationTask ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     ValueTask IGrainManagementExtension.DeactivateOnIdle()
@@ -1988,12 +1913,12 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     /// <summary>
     /// Additional properties which are not needed for the majority of an activation's lifecycle.
     /// </summary>
-    private class ActivationDataExtra : Dictionary<object, object>
+    private class ActivationDataExtra : ConcurrentDictionary<object, object>
     {
         private const int IsStuckProcessingMessageFlag = 1 << 0;
         private const int IsStuckDeactivatingFlag = 1 << 1;
         private const int IsDisposingFlag = 1 << 2;
-        private byte _flags;
+        private int _flags;
 
         public HashSet<IGrainTimer>? Timers { get => GetValueOrDefault<HashSet<IGrainTimer>>(nameof(Timers)); set => SetOrRemoveValue(nameof(Timers), value); }
 
@@ -2024,9 +1949,15 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         private DeactivationInfo? GetDeactivationInfoOrDefault() => GetValueOrDefault<DeactivationInfo>(nameof(DeactivationInfo));
         private DeactivationInfo EnsureDeactivationInfo()
         {
-            ref var info = ref CollectionsMarshal.GetValueRefOrAddDefault(this, nameof(DeactivationInfo), out _);
-            info ??= new DeactivationInfo();
-            return (DeactivationInfo)info;
+            if (TryGetValue(nameof(DeactivationInfo), out var obj))
+            {
+                return (DeactivationInfo)obj;
+            }
+
+            var info = new DeactivationInfo();
+            base[nameof(DeactivationInfo)] = info;
+
+            return info;
         }
 
         public bool IsStuckProcessingMessage { get => GetFlag(IsStuckProcessingMessageFlag); set => SetFlag(IsStuckProcessingMessageFlag, value); }
@@ -2035,17 +1966,24 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
         private void SetFlag(int flag, bool value)
         {
+            var f = Interlocked.CompareExchange(ref _flags, 0, 0);
+
             if (value)
             {
-                _flags |= (byte)flag;
+                Interlocked.CompareExchange(ref _flags, f | flag, f);
             }
             else
             {
-                _flags &= (byte)~flag;
+                Interlocked.CompareExchange(ref _flags, f & ~flag, f);
             }
         }
 
-        private bool GetFlag(int flag) => (_flags & flag) != 0;
+        private bool GetFlag(int flag)
+        {
+            var f = Interlocked.CompareExchange(ref _flags, 0, 0);
+            return (f & flag) == flag;
+        }
+
         private T? GetValueOrDefault<T>(object key)
         {
             TryGetValue(key, out var result);
@@ -2056,7 +1994,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         {
             if (value is null)
             {
-                Remove(key);
+                TryRemove(key, out _);
             }
             else
             {
