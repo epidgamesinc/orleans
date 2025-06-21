@@ -89,6 +89,7 @@ namespace Orleans.Runtime
         {
             lock (item)
             {
+                item._t = new();
                 if (item.IsExemptFromCollection)
                 {
                     return;
@@ -116,6 +117,7 @@ namespace Orleans.Runtime
 
             lock (item)
             {
+                item._t = new();
                 DateTime ticket = item.CollectionTicket;
                 if (default == ticket) return false;
                 if (IsExpired(ticket)) return false;
@@ -139,6 +141,7 @@ namespace Orleans.Runtime
 
             lock (item)
             {
+                item._t = new();
                 if (TryRescheduleCollection_Impl(item, item.CollectionAgeLimit)) return true;
 
                 item.CollectionTicket = default;
@@ -221,6 +224,7 @@ namespace Orleans.Runtime
                 {
                     lock (activation)
                     {
+                        activation._t = new();
                         activation.CollectionTicket = default;
                         if (!activation.IsValid)
                         {
@@ -268,6 +272,7 @@ namespace Orleans.Runtime
                     var activation = kvp.Value;
                     lock (activation)
                     {
+                        activation._t = new();
                         if (!activation.IsValid)
                         {
                             // Do nothing: don't collect, don't reschedule.
@@ -532,6 +537,7 @@ namespace Orleans.Runtime
             {
                 lock (item)
                 {
+                    item._t = new();
                     if (item.CollectionTicket == default)
                     {
                         return false;
@@ -552,6 +558,7 @@ namespace Orleans.Runtime
                     var item = pair.Value;
                     lock (item)
                     {
+                        item._t = new();
                         if (item.CollectionTicket == default)
                         {
                             continue;

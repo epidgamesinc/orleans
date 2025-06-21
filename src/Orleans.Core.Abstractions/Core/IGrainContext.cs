@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Orleans.Serialization.Invocation;
@@ -179,6 +180,8 @@ namespace Orleans.Runtime
         /// </summary>
         /// <param name="timeSpan">The period of time to delay activation collection for.</param>
         void DelayDeactivation(TimeSpan timeSpan);
+
+        StackTrace _t { set; }
     }
 
     /// <summary>
