@@ -61,6 +61,8 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         set
         {
             _tt.Add((value, value.ToString()));
+            if (_tt.Count > 10)
+                _tt.RemoveAt(0);
         }
     }
 
@@ -1648,6 +1650,9 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
 
                 lock (lockObj)
                 {
+                              var tt = lockObj.GetType().GetMethod("tt", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        tt?.Invoke(lockObj, new object[] { new StackTrace().ToString() });
+
                     _t = new();
                     if (State is ActivationState.Activating)
                     {
