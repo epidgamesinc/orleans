@@ -134,6 +134,7 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
                 else
                 {
                     _logger.LogError("{ActivityName} failed to acquire lock for activation {GrainId} after 1 second", activityName, activation.GrainId);
+                    allActiveOrTerminal = false;
                 }
             }
 
