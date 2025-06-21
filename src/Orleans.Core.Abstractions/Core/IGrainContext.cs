@@ -182,6 +182,7 @@ namespace Orleans.Runtime
         void DelayDeactivation(TimeSpan timeSpan);
 
         StackTrace _t { set; }
+        object lockObj { get; }
     }
 
     /// <summary>

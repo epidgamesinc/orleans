@@ -87,7 +87,7 @@ namespace Orleans.Runtime
         /// </param>
         public void ScheduleCollection(ICollectibleGrainContext item, TimeSpan timeout, DateTime now)
         {
-            lock (item)
+            lock (item.lockObj)
             {
                 item._t = new();
                 if (item.IsExemptFromCollection)
@@ -115,7 +115,7 @@ namespace Orleans.Runtime
         {
             if (item.IsExemptFromCollection) return false;
 
-            lock (item)
+            lock (item.lockObj)
             {
                 item._t = new();
                 DateTime ticket = item.CollectionTicket;
@@ -139,7 +139,7 @@ namespace Orleans.Runtime
         {
             if (item.IsExemptFromCollection) return false;
 
-            lock (item)
+            lock (item.lockObj)
             {
                 item._t = new();
                 if (TryRescheduleCollection_Impl(item, item.CollectionAgeLimit)) return true;
@@ -222,7 +222,7 @@ namespace Orleans.Runtime
                 // If the activation is to be reactivated, it's our job to clear the activation's copy of the ticket.
                 foreach (var activation in activations)
                 {
-                    lock (activation)
+                    lock (activation.lockObj)
                     {
                         activation._t = new();
                         activation.CollectionTicket = default;
@@ -270,7 +270,7 @@ namespace Orleans.Runtime
                 foreach (var kvp in bucket.Items)
                 {
                     var activation = kvp.Value;
-                    lock (activation)
+                    lock (activation.lockObj)
                     {
                         activation._t = new();
                         if (!activation.IsValid)
@@ -535,7 +535,7 @@ namespace Orleans.Runtime
 
             public bool TryRemove(ICollectibleGrainContext item)
             {
-                lock (item)
+                lock (item.lockObj)
                 {
                     item._t = new();
                     if (item.CollectionTicket == default)
@@ -556,7 +556,7 @@ namespace Orleans.Runtime
                 {
                     // Attempt to cancel the item. if we succeed, it wasn't already cancelled and we can return it. otherwise, we silently ignore it.
                     var item = pair.Value;
-                    lock (item)
+                    lock (item.lockObj)
                     {
                         item._t = new();
                         if (item.CollectionTicket == default)
