@@ -54,7 +54,15 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
     private readonly Task _messageLoopTask;
 #pragma warning restore IDE0052 // Remove unread private members
 
-    public StackTrace? _t = null;
+    public StackTrace _t
+    {
+        set
+        {
+            _tt.Add((value, value.ToString()));
+        }
+    }
+
+    private List<(StackTrace, string)> _tt = new();
 
     public ActivationData(
         GrainAddress grainAddress,
