@@ -126,6 +126,7 @@ internal class ActivationMigrationManager : SystemTarget, IActivationMigrationMa
                     if (activation.State is not (ActivationState.Valid or ActivationState.Invalid))
                     {
                         allActiveOrTerminal = false;
+                        Monitor.Exit(activation);
                         break;
                     }
 
