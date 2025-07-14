@@ -3,7 +3,10 @@ using System;
 using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Extensions.Logging;
 using Orleans.Serialization.Buffers;
 using Orleans.Serialization.Codecs;
 using Orleans.Serialization.Session;
@@ -97,12 +100,46 @@ internal sealed class MigrationContext : IDehydrationContext, IRehydrationContex
     {
         if (_indices.TryGetValue(key, out var record) && _sessionPool.CodecProvider.TryGetCodec<T>() is { } codec)
         {
-            using var session = _sessionPool.GetSession();
-            var source = _buffer.Slice(record.Offset, record.Length);
-            var reader = Reader.Create(source, session);
-            var field = reader.ReadFieldHeader();
-            value = codec.ReadValue(ref reader, field);
-            return true;
+            try
+            {
+                using var session = _sessionPool.GetSession();
+                var source = _buffer.Slice(record.Offset, record.Length);
+                var reader = Reader.Create(source, session);
+                var field = reader.ReadFieldHeader();
+                value = codec.ReadValue(ref reader, field);
+                return true;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // ????
+
+                Console.WriteLine("TryGetValue Fail! {Key}", key);
+
+                var indices = _indices.ToArray();
+                for (var i = 0; i < indices.Length; i++)
+                {
+                    var index = indices[i];
+                    Console.WriteLine($"TryGetValue Index {i} Key: {index.Key}, Offset: {index.Value.Offset}, Length: {index.Value.Length}", i, index.Key, index.Value.Offset, index.Value.Length);
+                }
+
+                var bytes = _buffer.ToArray();
+
+                var sb = new StringBuilder();
+                sb.AppendLine("TryGetValue Buffer:");
+
+                for (var i = 0; i < bytes.Length; i++)
+                {
+                    sb.AppendFormat("{0:X2} ", bytes[i]);
+                    if (i % 16 == 15)
+                    {
+                        sb.AppendLine();
+                    }
+                }
+
+                Console.WriteLine(sb.ToString());
+
+                throw;
+            }
         }
 
         value = default;
