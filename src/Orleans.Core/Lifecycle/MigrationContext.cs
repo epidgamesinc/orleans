@@ -113,13 +113,13 @@ internal sealed class MigrationContext : IDehydrationContext, IRehydrationContex
             {
                 // ????
 
-                Console.WriteLine("TryGetValue Fail! {Key}", key);
+                Console.WriteLine($"TryGetValue Fail! {key}");
 
                 var indices = _indices.ToArray();
                 for (var i = 0; i < indices.Length; i++)
                 {
                     var index = indices[i];
-                    Console.WriteLine($"TryGetValue Index {i} Key: {index.Key}, Offset: {index.Value.Offset}, Length: {index.Value.Length}", i, index.Key, index.Value.Offset, index.Value.Length);
+                    Console.WriteLine($"TryGetValue Index {i} Key: {index.Key}, Offset: {index.Value.Offset}, Length: {index.Value.Length}");
                 }
 
                 var bytes = _buffer.ToArray();
