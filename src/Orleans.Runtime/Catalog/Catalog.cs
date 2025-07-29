@@ -43,7 +43,7 @@ namespace Orleans.Runtime
             this.activationCollector = activationCollector;
             this.RuntimeClient = serviceProvider.GetRequiredService<InsideRuntimeClient>();
 
-            // GC.GetTotalMemory(true); // need to call once w/true to ensure false returns OK value
+            GC.GetTotalMemory(true); // need to call once w/true to ensure false returns OK value
 
             MessagingProcessingInstruments.RegisterActivationDataAllObserve(() =>
             {
