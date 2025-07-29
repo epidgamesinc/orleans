@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -453,27 +454,45 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         lock (this)
         {
             // If the grain is currently activating, cancel that operation.
-            if (_pendingOperations is not { } operations)
+            if (_pendingOperations is not { Count: > 0 } operations)
             {
                 return;
             }
 
-            foreach (var op in operations)
+            var opCount = operations.Count;
+            // We could be using an ArrayPool<Command> here, but we would need to filter out the
+            // non-command types, which means we would need to loop over _pendingOperations, which
+            // defeats the purpose of making a snapshot.
+            // Note: CopyTo does not use the queue's enumerator, so its safe to take a snapshot this way.
+            var array = ArrayPool<object>.Shared.Rent(opCount);
+
+            operations.CopyTo(array, 0);
+
+            var snapshot = new Span<object>(array, 0, opCount);
+
+            try
             {
-                if (op is Command cmd)
+                foreach (var op in snapshot)
                 {
-                    try
+                    if (op is Command cmd)
                     {
-                        cmd.Cancel();
-                    }
-                    catch (Exception exception)
-                    {
-                        if (exception is not ObjectDisposedException)
+                        try
                         {
-                            _shared.Logger.LogWarning(exception, "Error while cancelling on-going operation '{Operation}'.", cmd);
+                            cmd.Cancel();
+                        }
+                        catch (Exception exception)
+                        {
+                            if (exception is not ObjectDisposedException)
+                            {
+                                _shared.Logger.LogWarning(exception, "Error while cancelling on-going operation '{Operation}'.", cmd);
+                            }
                         }
                     }
                 }
+            }
+            finally
+            {
+                ArrayPool<object>.Shared.Return(array, true);
             }
         }
     }
