@@ -156,10 +156,13 @@ namespace Orleans.Runtime
             MessagingProcessingInstruments.OnDispatcherMessageProcessedError(message);
 
             static bool ShouldLogError(Exception ex)
-            {
-                return !(ex.GetBaseException() is KeyNotFoundException) &&
-                       !(ex.GetBaseException() is ClientNotAvailableException);
-            }
+                => ex.GetBaseException() switch
+                {
+                    KeyNotFoundException _ => false,
+                    ClientNotAvailableException _ => false,
+                    SiloUnavailableException _ => false,
+                    _ => true,
+                };
         }
     }
 }
