@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.IO.Pipelines;
+using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -189,6 +190,7 @@ namespace Orleans.Networking.Shared
                 var buffer = input.GetMemory(MinAllocBufferSize);
 
                 var bytesReceived = await _receiver.ReceiveAsync(buffer);
+                LogTraceRecvStart(_trace, bytesReceived, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId);
 
                 if (bytesReceived == 0)
                 {
@@ -209,6 +211,7 @@ namespace Orleans.Networking.Shared
                 }
 
                 var result = await flushTask;
+                LogTraceRecvDone(_trace, bytesReceived, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId);
 
                 if (paused)
                 {
@@ -269,6 +272,7 @@ namespace Orleans.Networking.Shared
             while (true)
             {
                 var result = await output.ReadAsync();
+                LogTraceSendStart(_trace, result.Buffer.Length, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId);
 
                 if (result.IsCanceled)
                 {
@@ -282,6 +286,7 @@ namespace Orleans.Networking.Shared
                 if (!buffer.IsEmpty)
                 {
                     await _sender.SendAsync(buffer);
+                    LogTraceSendDone(_trace, buffer.Length, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId);
                 }
 
                 output.AdvanceTo(end);
@@ -388,5 +393,29 @@ namespace Orleans.Networking.Shared
             Message = "Unexpected exception in SocketConnection.CancelConnectionClosedToken."
         )]
         private static partial void LogErrorUnexpectedExceptionInCancelConnectionClosedToken(ILogger logger, Exception exception);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "socket send {BytesSent} 바이트 시작 {LocalEndPoint} => {RemoteEndPoint} {ConnectionId}"
+        )]
+        private static partial void LogTraceSendStart(ILogger logger, long bytesSent, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "socket send {BytesSent} 바이트 완료 {LocalEndPoint} => {RemoteEndPoint} {ConnectionId}"
+        )]
+        private static partial void LogTraceSendDone(ILogger logger, long bytesSent, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "socket recv {BytesReceived} 바이트 시작 {LocalEndPoint} <= {RemoteEndPoint} {ConnectionId}"
+        )]
+        private static partial void LogTraceRecvStart(ILogger logger, long bytesReceived, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "socket recv {BytesReceived} 바이트 완료 {LocalEndPoint} <= {RemoteEndPoint} {ConnectionId}"
+        )]
+        private static partial void LogTraceRecvDone(ILogger logger, long bytesReceived, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId);
     }
 }
