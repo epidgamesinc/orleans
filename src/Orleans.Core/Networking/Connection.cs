@@ -363,6 +363,7 @@ namespace Orleans.Runtime.Messaging
                             inflight.Add(message);
                             var (headerLength, bodyLength) = serializer.Write(output, message);
                             RecordMessageSend(message, headerLength + bodyLength, headerLength);
+                            LogTraceMessageSerializeDone(Log, message);
                             messageObserver?.Invoke(message);
                             message = null;
                         }
@@ -378,6 +379,7 @@ namespace Orleans.Runtime.Messaging
                     var flushResult = await output.FlushAsync();
                     if (flushResult.IsCompleted || flushResult.IsCanceled)
                     {
+                        LogTraceTransportOutputFlushDone(Log);
                         break;
                     }
 
@@ -631,5 +633,17 @@ namespace Orleans.Runtime.Messaging
             Message = "Dropping message which failed during serialization: {Message}"
         )]
         private static partial void LogWarningDroppingMessage(ILogger logger, Exception exception, Message message);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "message를 transport output에 serialize 완료 {Message}"
+        )]
+        private static partial void LogTraceMessageSerializeDone(ILogger logger, Message message);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "transport output flush 완료"
+        )]
+        private static partial void LogTraceTransportOutputFlushDone(ILogger logger);
     }
 }

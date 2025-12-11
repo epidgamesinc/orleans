@@ -190,6 +190,7 @@ namespace Orleans.Runtime.Messaging
                 {
                     if (this.connectionManager.TryGetConnection(targetSilo, out var existingConnection))
                     {
+                        LogTraceSendMessageUsingExistingConnection(log, msg);
                         existingConnection.Send(msg);
                         return;
                     }
@@ -206,6 +207,7 @@ namespace Orleans.Runtime.Messaging
                     }
                     else
                     {
+                        LogTraceSendMessageUsingNewConnection(log, msg);
                         var connectionTask = this.connectionManager.GetConnection(targetSilo);
                         if (connectionTask.IsCompletedSuccessfully)
                         {
@@ -221,6 +223,7 @@ namespace Orleans.Runtime.Messaging
                                 try
                                 {
                                     var sender = await connectionTask;
+                                    LogTraceConnectCompleteForSendMessage(messageCenter.log, msg);
                                     sender.Send(msg);
                                 }
                                 catch (Exception exception)
@@ -685,5 +688,23 @@ namespace Orleans.Runtime.Messaging
             Message = "Dropping rejection {Message}"
         )]
         private static partial void LogDebugDroppingRejection(ILogger logger, Message message);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "이미 연결된 connection으로 외부로 나가는 message: {Message}"
+        )]
+        private static partial void LogTraceSendMessageUsingExistingConnection(ILogger logger, Message message);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "새 connection으로 외부로 나가는 message: {Message}"
+        )]
+        private static partial void LogTraceSendMessageUsingNewConnection(ILogger logger, Message message);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "message를 보내기 위한 silo 연결 완료: {Message}"
+        )]
+        private static partial void LogTraceConnectCompleteForSendMessage(ILogger logger, Message message);
     }
 }
