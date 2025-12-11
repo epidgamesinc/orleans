@@ -281,6 +281,7 @@ namespace Orleans.Runtime.Messaging
                 while (true)
                 {
                     var readResult = await input.ReadAsync();
+                    LogTraceReadTransportInput(Log, readResult.Buffer.Length);
 
                     var buffer = readResult.Buffer;
                     if (buffer.Length >= requiredBytes)
@@ -299,6 +300,7 @@ namespace Orleans.Runtime.Messaging
                                     var handler = MessageHandlerPool.Get();
                                     handler.Set(message, this);
                                     ThreadPool.UnsafeQueueUserWorkItem(handler, preferLocal: true);
+                                    LogTraceMessageDeserializeDone(Log, message);
                                 }
                             }
                             catch (Exception exception)
@@ -645,5 +647,17 @@ namespace Orleans.Runtime.Messaging
             Message = "transport output flush 완료"
         )]
         private static partial void LogTraceTransportOutputFlushDone(ILogger logger);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "transport input에서 message deserialize 완료 {Message}"
+        )]
+        private static partial void LogTraceMessageDeserializeDone(ILogger logger, Message message);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "transport input에서 읽기 완료, 바이트 수: {BytesRead}"
+        )]
+        private static partial void LogTraceReadTransportInput(ILogger logger, long bytesRead);
     }
 }
