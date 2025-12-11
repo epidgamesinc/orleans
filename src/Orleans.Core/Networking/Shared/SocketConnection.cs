@@ -183,13 +183,22 @@ namespace Orleans.Networking.Shared
             var input = Input;
             while (true)
             {
+                var loopStart = Stopwatch.GetTimestamp();
+
+                LogTraceRecvWait(_trace, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId);
+
                 // Wait for data before allocating a buffer.
                 await _receiver.WaitForDataAsync();
+
+                var afterWait = Stopwatch.GetTimestamp();
 
                 // Ensure we have some reasonable amount of buffer space
                 var buffer = input.GetMemory(MinAllocBufferSize);
 
                 var bytesReceived = await _receiver.ReceiveAsync(buffer);
+
+                var afterReceive = Stopwatch.GetTimestamp();
+
                 LogTraceRecvStart(_trace, bytesReceived, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId);
 
                 if (bytesReceived == 0)
@@ -211,7 +220,12 @@ namespace Orleans.Networking.Shared
                 }
 
                 var result = await flushTask;
-                LogTraceRecvDone(_trace, bytesReceived, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId);
+
+                var afterFlush = Stopwatch.GetTimestamp();
+                var flushDuration = (int)Stopwatch.GetElapsedTime(afterReceive, afterFlush).TotalMilliseconds;
+                var waitDuration = (int)Stopwatch.GetElapsedTime(loopStart, afterWait).TotalMilliseconds;
+
+                LogTraceRecvDone(_trace, bytesReceived, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId, flushDuration, waitDuration);
 
                 if (paused)
                 {
@@ -414,8 +428,14 @@ namespace Orleans.Networking.Shared
 
         [LoggerMessage(
             Level = LogLevel.Trace,
-            Message = "socket recv {BytesReceived} 바이트 완료 {LocalEndPoint} <= {RemoteEndPoint} {ConnectionId}"
+            Message = "socket recv {BytesReceived} 바이트 완료 {LocalEndPoint} <= {RemoteEndPoint} {ConnectionId} {FlushDuration} {WaitDuration}"
         )]
-        private static partial void LogTraceRecvDone(ILogger logger, long bytesReceived, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId);
+        private static partial void LogTraceRecvDone(ILogger logger, long bytesReceived, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId, int flushDuration, int waitDuration);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "socket recv 대기 {LocalEndPoint} <= {RemoteEndPoint} {ConnectionId}"
+        )]
+        private static partial void LogTraceRecvWait(ILogger logger, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId);
     }
 }
