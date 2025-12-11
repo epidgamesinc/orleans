@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -508,9 +509,10 @@ namespace Orleans.Runtime.Messaging
             SendMessage(message);
         }
 
-        public void ReceiveMessage(Message msg)
+        public void ReceiveMessage(Message msg, [CallerMemberName] string callerName = "", [CallerLineNumber] int callerLine = 0)
         {
             Debug.Assert(!msg.IsLocalOnly);
+            LogTraceRecvMessage(log, callerName, callerLine, msg);
             try
             {
                 this.messagingTrace.OnIncomingMessageAgentReceiveMessage(msg);
@@ -706,5 +708,11 @@ namespace Orleans.Runtime.Messaging
             Message = "message를 보내기 위한 silo 연결 완료: {Message}"
         )]
         private static partial void LogTraceConnectCompleteForSendMessage(ILogger logger, Message message);
+
+        [LoggerMessage(
+            Level = LogLevel.Trace,
+            Message = "message 수신 {CallerFunc}:{CallerLine}: {Message}"
+        )]
+        private static partial void LogTraceRecvMessage(ILogger logger, string callerFunc, int callerLine, Message message);
     }
 }
