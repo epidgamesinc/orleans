@@ -225,7 +225,7 @@ namespace Orleans.Networking.Shared
                 var flushDuration = (int)Stopwatch.GetElapsedTime(afterReceive, afterFlush).TotalMilliseconds;
                 var waitDuration = (int)Stopwatch.GetElapsedTime(loopStart, afterWait).TotalMilliseconds;
 
-                LogTraceRecvDone(_trace, bytesReceived, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId, flushDuration, waitDuration);
+                LogTraceRecvDone(_trace, bytesReceived, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId, flushDuration, waitDuration, BytesToHash(buffer[..bytesReceived]));
 
                 if (paused)
                 {
@@ -300,7 +300,7 @@ namespace Orleans.Networking.Shared
                 if (!buffer.IsEmpty)
                 {
                     await _sender.SendAsync(buffer);
-                    LogTraceSendDone(_trace, buffer.Length, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId);
+                    LogTraceSendDone(_trace, buffer.Length, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId, BytesToHash(buffer));
                 }
 
                 output.AdvanceTo(end);
@@ -396,6 +396,37 @@ namespace Orleans.Networking.Shared
                    (errorCode == SocketError.InvalidArgument && !IsWindows);
         }
 
+        private static ulong BytesToHash(ReadOnlySequence<byte> buffer)
+        {
+            ulong hash = 14695981039346656037UL; // FNV offset basis
+
+            foreach (var segment in buffer)
+            {
+                var span = segment.Span;
+                for (int i = 0; i < span.Length; i++)
+                {
+                    hash ^= span[i];
+                    hash *= 1099511628211UL; // FNV prime
+                }
+            }
+
+            return hash;
+        }
+
+        private static ulong BytesToHash(Memory<byte> buffer)
+        {
+            ulong hash = 14695981039346656037UL; // FNV offset basis
+
+            var span = buffer.Span;
+            for (int i = 0; i < span.Length; i++)
+            {
+                hash ^= span[i];
+                hash *= 1099511628211UL; // FNV prime
+            }
+
+            return hash;
+        }
+
         [LoggerMessage(
             Level = LogLevel.Error,
             Message = "Unexpected exception in SocketConnection.StartAsync."
@@ -416,9 +447,9 @@ namespace Orleans.Networking.Shared
 
         [LoggerMessage(
             Level = LogLevel.Trace,
-            Message = "socket send {BytesSent} 바이트 완료 {LocalEndPoint} => {RemoteEndPoint} {ConnectionId}"
+            Message = "socket send {BytesSent} 바이트 완료 {LocalEndPoint} => {RemoteEndPoint} {ConnectionId} {Hash:x16}"
         )]
-        private static partial void LogTraceSendDone(ILogger logger, long bytesSent, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId);
+        private static partial void LogTraceSendDone(ILogger logger, long bytesSent, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId, ulong hash);
 
         [LoggerMessage(
             Level = LogLevel.Trace,
@@ -428,9 +459,9 @@ namespace Orleans.Networking.Shared
 
         [LoggerMessage(
             Level = LogLevel.Trace,
-            Message = "socket recv {BytesReceived} 바이트 완료 {LocalEndPoint} <= {RemoteEndPoint} {ConnectionId} {FlushDuration} {WaitDuration}"
+            Message = "socket recv {BytesReceived} 바이트 완료 {LocalEndPoint} <= {RemoteEndPoint} {ConnectionId} {FlushDuration} {WaitDuration} {Hash:x16}"
         )]
-        private static partial void LogTraceRecvDone(ILogger logger, long bytesReceived, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId, int flushDuration, int waitDuration);
+        private static partial void LogTraceRecvDone(ILogger logger, long bytesReceived, EndPoint localEndPoint, EndPoint remoteEndPoint, string connectionId, int flushDuration, int waitDuration, ulong hash);
 
         [LoggerMessage(
             Level = LogLevel.Trace,
