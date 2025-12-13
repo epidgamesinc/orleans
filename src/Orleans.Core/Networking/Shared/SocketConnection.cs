@@ -188,7 +188,7 @@ namespace Orleans.Networking.Shared
                 LogTraceRecvWait(_trace, _socket.LocalEndPoint, _socket.RemoteEndPoint, ConnectionId);
 
                 // Wait for data before allocating a buffer.
-                await _receiver.WaitForDataAsync();
+                // await _receiver.WaitForDataAsync();
 
                 var afterWait = Stopwatch.GetTimestamp();
 
