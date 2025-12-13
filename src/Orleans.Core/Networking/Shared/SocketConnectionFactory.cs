@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,6 +43,12 @@ namespace Orleans.Networking.Shared
                     timeSeconds: _options.KeepAliveTimeSeconds,
                     intervalSeconds: _options.KeepAliveIntervalSeconds,
                     retryCount: _options.KeepAliveRetryCount);
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                const int TCP_QUICKACK = 12;
+                socket.SetSocketOption(SocketOptionLevel.Tcp, (SocketOptionName)TCP_QUICKACK, 1);
             }
 
             socket.EnableFastPath();
