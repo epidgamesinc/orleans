@@ -195,7 +195,8 @@ namespace Orleans.Networking.Shared
                 // Ensure we have some reasonable amount of buffer space
                 var buffer = input.GetMemory(MinAllocBufferSize);
 
-                var bytesReceived = await _receiver.ReceiveAsync(buffer);
+                // var bytesReceived = await _receiver.ReceiveAsync(buffer);
+                var bytesReceived = _socket.Receive(buffer.Span);
 
                 var afterReceive = Stopwatch.GetTimestamp();
 
