@@ -2042,7 +2042,7 @@ internal sealed class ActivationData : IGrainContext, ICollectibleGrainContext, 
         }
     }
 
-    private abstract class Command(CancellationTokenSource cts)
+    private abstract class Command(CancellationTokenSource cts) : IDisposable
     {
         private bool _disposed;
         private readonly CancellationTokenSource _cts = cts;
